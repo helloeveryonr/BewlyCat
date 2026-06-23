@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Bilibili 评论 IP 与极致弹性净化助手",
+  "description": "独立轻量版：采用网络级数据清洗剔除直播广告，配合自适应弹性网格无损撑满放大封面，完美闭环。",
+  "version": "3.1.0",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.bilibili.com/*",
+    "https://t.bilibili.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "独立设置"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.bilibili.com/*",
+        "https://t.bilibili.com/*"
+      ],
+      "js": ["content_isolated.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.bilibili.com/*",
+        "https://t.bilibili.com/*"
+      ],
+      "js": ["content_main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

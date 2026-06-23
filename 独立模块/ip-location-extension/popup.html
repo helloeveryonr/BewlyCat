@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { width: 230px; padding: 15px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #fdfdfd; color: #222; margin: 0; }
+    h3 { margin: 0 0 15px 0; font-size: 14px; color: #00a1d6; text-align: center; border-bottom: 2px solid #89ddf0; padding-bottom: 8px; }
+    .item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; font-weight: bold; }
+    .switch { position: relative; display: inline-block; width: 38px; height: 20px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .2s; border-radius: 20px; }
+    .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .2s; border-radius: 50%; }
+    input:checked + .slider { background-color: #89ddf0; }
+    input:checked + .slider:before { transform: translateX(18px); }
+  </style>
+</head>
+<body>
+  <h3>B站增强工具箱</h3>
+  <div class="item">
+    <span>显示评论区 IP</span>
+    <label class="switch">
+      <input type="checkbox" id="toggleIp">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="item">
+    <span>全自动弹性网格净化</span>
+    <label class="switch">
+      <input type="checkbox" id="togglePure">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
