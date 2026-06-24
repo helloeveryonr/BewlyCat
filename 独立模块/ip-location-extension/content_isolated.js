@@ -31,8 +31,8 @@
       gap: 12px !important;
     }
 
-    /* ==================== 3. 全局强力防御层（隐藏各种静态逃逸组件 + 打标后的硬核净化） ==================== */
-    html[data-bili-pure-status="on"] [data-bili-card-type="pure-blocked"],
+    /* ==================== 3. 全局强力防御层（隐藏各种静态逃逸组件 + 额外特定硬标签过滤） ==================== */
+    html[data-bili-pure-status="on"] [data-bili-card-type=\"pure-blocked\"],
     html[data-bili-pure-status="on"] #bili_live_recom,
     html[data-bili-pure-status="on"] .pop-live-small-list,
     html[data-bili-pure-status="on"] .video-page-special-card-small,
@@ -41,7 +41,7 @@
     html[data-bili-pure-status="on"] .banner-card,
     html[data-bili-pure-status="on"] .bili-video-card:has(a[href*="live.bilibili.com"]),
     html[data-bili-pure-status="on"] .bili-video-card:has(a[href*="/bangumi/play"]),
-    /* 增加对强行渲染的各类非 UGC 元素进行前端兜底斩杀 */
+    /* 精准硬核捕获带有特定渲染角标的干扰卡片并执行底层硬隐藏 */
     html[data-bili-pure-status="on"] .bili-video-card:has(.bili-video-card__info--creative-badge),
     html[data-bili-pure-status="on"] .bili-video-card:has(.bili-video-card__badge) {
       display: none !important;
