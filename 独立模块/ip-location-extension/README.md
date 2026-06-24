@@ -10,6 +10,3 @@
 ## 目录结构
 - `manifest.json` - 扩展配置文件（配置主环境执行环境）
 - `content.js` - 地理位置核心拦截与 DOM 操作脚本
-
-## 工作原理
-利用扩展的 `"world": "MAIN"` 特性，将脚本在 B 站原生组件注册前注入。重写 `window.customElements.define` 方法，在 `bili-comment-user-info` 组件实例化及调用内部 `update()` 更新数据时，动态抽取出 `reply_control.location` 字段，并在 `#user-name` 元素后追加高可视度的 IP 属地 Badge。
