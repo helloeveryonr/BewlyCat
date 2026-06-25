@@ -1,5 +1,5 @@
 /**
- * 页面主环境层：全站【数据流劫持过滤层】 + 高性能 IP 组件挂载 + 原生 WBI 联动流控器
+ * 页面主环境层：全站【数据流劫持过滤层】 + 高性能 IP 组件挂载
  */
 (function () {
   if (window.__BILI_ULTIMATE_MAIN_INJECTED__) return;
@@ -12,13 +12,24 @@
     return document.documentElement.getAttribute('data-bili-pure-status') === 'on';
   }
 
-  // ==================== [核心 1: 数据层接口精准洗数] ====================
+  // ==================== [核心 1: 数据层接口洗数 (彻底解决补货掉帧)] ====================
   
   // 1. 拦截原生 Fetch（用于首页最新版瀑布流推荐）
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
+    let url = args[0]?.url || args[0] || '';
+
+    // 【新增性能优化点】：在开启净化时，从源头改大 page_size 参数，让 B 站一次性返回 30 条数据。
+    // 这样即便被过滤掉一半，剩下的也足够撑满屏幕，绝不会引起瀑布流断流。
+    if (typeof url === 'string' && isPureEnabled() && url.includes('web-interface/wbi/index/top/feed/rcmd')) {
+      try {
+        const urlObj = new URL(url, window.location.origin);
+        urlObj.searchParams.set('page_size', '30');
+        args[0] = urlObj.toString();
+      } catch (e) {}
+    }
+
     const response = await originalFetch(...args);
-    const url = args[0]?.url || args[0] || '';
 
     if (typeof url === 'string' && isPureEnabled()) {
       // 首页瀑布流数据流
@@ -28,10 +39,23 @@
           const json = await clone.json();
           if (json?.data?.item) {
             // 洗数：只保留纯正 UGC 视频内容，抹去一切杂质
-            json.data.item = json.data.item.filter(item => 
-              item.goto === 'av' || item.goto === 'vertical' || 
-              !['live', 'ad', 'bangumi', 'cheese', 'opus', 'cm', 'game'].includes(item.goto)
-            );
+            json.data.item = json.data.item.filter(item => {
+              // 防御：深度过滤赛事、广告角标以及非普通视频的goto类型
+              let reason = typeof item.rcmd_reason === 'string' ? item.rcmd_reason : (item.rcmd_reason?.content || '');
+              let badge = typeof item.badge === 'string' ? item.badge : (item.badge?.text || item.badge_info?.text || '');
+              if (reason.includes('赛事') || reason.includes('广告') || badge.includes('赛事') || badge.includes('广告')) {
+                return false;
+              }
+              return item.goto === 'av' || item.goto === 'vertical';
+            });
+
+            // 【核心修复】：如果洗完数后，这一页剩下的有效视频少于 8 个（容易导致高度不足断流）
+            // 在异步微任务里向 window 发送一个 scroll 事件，无感唤醒 B 站底层的加载器去请求下一页
+            if (json.data.item.length < 8) {
+              queueMicrotask(() => {
+                window.dispatchEvent(new Event('scroll'));
+              });
+            }
           }
           return new Response(JSON.stringify(json), { status: response.status, statusText: response.statusText, headers: response.headers });
         } catch (e) {}
@@ -42,7 +66,14 @@
           const clone = response.clone();
           const json = await clone.json();
           if (Array.isArray(json?.data)) {
-            json.data = json.data.filter(item => !item.program && !item.ad_info && !['live', 'opus'].includes(item.goto));
+            json.data = json.data.filter(item => {
+              let reason = typeof item.rcmd_reason === 'string' ? item.rcmd_reason : (item.rcmd_reason?.content || '');
+              let badge = typeof item.badge === 'string' ? item.badge : (item.badge?.text || item.badge_info?.text || '');
+              if (reason.includes('赛事') || reason.includes('广告') || badge.includes('赛事') || badge.includes('广告')) {
+                return false;
+              }
+              return !item.program && !item.ad_info && !['live', 'opus'].includes(item.goto);
+            });
           }
           return new Response(JSON.stringify(json), { status: response.status, statusText: response.statusText, headers: response.headers });
         } catch (e) {}
@@ -68,9 +99,28 @@
             try {
               let resData = JSON.parse(self.responseText);
               if (resData?.data?.item) {
-                resData.data.item = resData.data.item.filter(item => item.goto === 'av' || item.goto === 'vertical' || !['live', 'ad', 'bangumi', 'cheese', 'opus', 'cm', 'game'].includes(item.goto));
+                resData.data.item = resData.data.item.filter(item => {
+                  let reason = typeof item.rcmd_reason === 'string' ? item.rcmd_reason : (item.rcmd_reason?.content || '');
+                  let badge = typeof item.badge === 'string' ? item.badge : (item.badge?.text || item.badge_info?.text || '');
+                  if (reason.includes('赛事') || reason.includes('广告') || badge.includes('赛事') || badge.includes('广告')) {
+                    return false;
+                  }
+                  return item.goto === 'av' || item.goto === 'vertical';
+                });
+                
+                // 同样的 XHR 兜底补货判定
+                if (resData.data.item.length < 8) {
+                  queueMicrotask(() => { window.dispatchEvent(new Event('scroll')); });
+                }
               } else if (Array.isArray(resData?.data)) {
-                resData.data = resData.data.filter(item => !item.program && !item.ad_info && !['live', 'opus'].includes(item.goto));
+                resData.data = resData.data.filter(item => {
+                  let reason = typeof item.rcmd_reason === 'string' ? item.rcmd_reason : (item.rcmd_reason?.content || '');
+                  let badge = typeof item.badge === 'string' ? item.badge : (item.badge?.text || item.badge_info?.text || '');
+                  if (reason.includes('赛事') || reason.includes('广告') || badge.includes('赛事') || badge.includes('广告')) {
+                    return false;
+                  }
+                  return !item.program && !item.ad_info && !['live', 'opus'].includes(item.goto);
+                });
               }
               Object.defineProperty(self, 'responseText', { value: JSON.stringify(resData), configurable: true });
               Object.defineProperty(self, 'response', { value: JSON.stringify(resData), configurable: true });
@@ -144,27 +194,6 @@
   const pendingCards = new Set();
   let isMicrotaskScheduled = false;
 
-  // 【借鉴 BewlyCat 思路】：高性能自动化填屏流控函数
-  function autoFillScreenFlow() {
-    if (!isPureEnabled()) return;
-    
-    // 给浏览器留出 100ms 释放隐藏 DOM 后的排版高度
-    setTimeout(() => {
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = document.documentElement.clientHeight;
-      
-      // 如果当前内容总高度连 1.5 屏都不到，或者当前滚动条已经接近死锁触底
-      if (scrollHeight <= clientHeight * 1.5 || window.innerHeight + window.scrollY >= scrollHeight - 650) {
-        // 1. 触发一次标准 scroll 事件，唤醒 B 站挂载在 window 上的无限加载监听
-        window.dispatchEvent(new Event('scroll'));
-        
-        // 2. 物理微位移：向下轻微滚动 1 像素再弹回，彻底激活组件内部的 IntersectionObserver
-        window.scrollBy(0, 1);
-        window.scrollBy(0, -1);
-      }
-    }, 100);
-  }
-
   function processQueue() {
     isMicrotaskScheduled = false;
 
@@ -195,13 +224,33 @@
               break;
             }
           }
+          // 额外防御：如果检测到里面含有“赛事”或“广告”这类非正常视频角标，也判定为需要阻断
+          if (!shouldBlock) {
+            const hasBadgeNode = card.querySelector('.bili-video-card__info--creative-badge, .bili-video-card__badge');
+            if (hasBadgeNode) {
+              shouldBlock = true;
+            } else {
+              // 匹配包含“赛事”、“广告”的角标文本，通常角标包含 badge、reason、tag 等类名（兜底页面缓存/SSR加载的元素）
+              const badgeNodes = card.querySelectorAll('[class*="badge"], [class*="reason"], [class*="tag"]');
+              for (let j = 0; j < badgeNodes.length; j++) {
+                const className = badgeNodes[j].getAttribute('class') || '';
+                // 防止误伤带有这类类名的标题和作者名
+                if (className.includes('title') || className.includes('author') || className.includes('name')) {
+                  continue; 
+                }
+                const text = badgeNodes[j].textContent || '';
+                if (text.includes('赛事') || text.includes('广告')) {
+                  shouldBlock = true;
+                  break;
+                }
+              }
+            }
+          }
+
           card.setAttribute('data-bili-card-type', shouldBlock ? 'pure-blocked' : 'normal');
         }
       }
       pendingCards.clear();
-
-      // 【核心调用】：DOM 裁剪隐藏完成后，立即检查屏幕是否被填满，不饱满则立刻命令 B 站脚本自动加载下页
-      autoFillScreenFlow();
     }
   }
 
