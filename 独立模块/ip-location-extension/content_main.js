@@ -1,5 +1,5 @@
 /**
- * 页面主环境层：全站【数据流劫持过滤层】 + 高性能 IP 组件挂载
+ * 页面主环境层：全站【数据流劫持过滤层】 + 高性能 IP 组件挂载 + 原生 WBI 联动流控器
  */
 (function () {
   if (window.__BILI_ULTIMATE_MAIN_INJECTED__) return;
@@ -12,7 +12,7 @@
     return document.documentElement.getAttribute('data-bili-pure-status') === 'on';
   }
 
-  // ==================== [核心 1: 数据层接口洗数 (彻底解决补货掉帧)] ====================
+  // ==================== [核心 1: 数据层接口精准洗数] ====================
   
   // 1. 拦截原生 Fetch（用于首页最新版瀑布流推荐）
   const originalFetch = window.fetch;
@@ -144,10 +144,31 @@
   const pendingCards = new Set();
   let isMicrotaskScheduled = false;
 
+  // 【借鉴 BewlyCat 思路】：高性能自动化填屏流控函数
+  function autoFillScreenFlow() {
+    if (!isPureEnabled()) return;
+    
+    // 给浏览器留出 100ms 释放隐藏 DOM 后的排版高度
+    setTimeout(() => {
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = document.documentElement.clientHeight;
+      
+      // 如果当前内容总高度连 1.5 屏都不到，或者当前滚动条已经接近死锁触底
+      if (scrollHeight <= clientHeight * 1.5 || window.innerHeight + window.scrollY >= scrollHeight - 650) {
+        // 1. 触发一次标准 scroll 事件，唤醒 B 站挂载在 window 上的无限加载监听
+        window.dispatchEvent(new Event('scroll'));
+        
+        // 2. 物理微位移：向下轻微滚动 1 像素再弹回，彻底激活组件内部的 IntersectionObserver
+        window.scrollBy(0, 1);
+        window.scrollBy(0, -1);
+      }
+    }, 100);
+  }
+
   function processQueue() {
     isMicrotaskScheduled = false;
 
-    // A. 注入评论组件 IP (添加全面空安全防御性校验)
+    // A. 注入评论组件 IP
     if (typeof pendingComments !== 'undefined' && pendingComments && pendingComments.size > 0) {
       const ctor = window.customElements.get('bili-comment-user-info');
       if (ctor) {
@@ -179,31 +200,8 @@
       }
       pendingCards.clear();
 
-      // ==========================================
-      // 【这里是唯一新增的代码】：只修补视频太少不断流的问题
-      // ==========================================
-      if (isPureEnabled()) {
-        // 给 CSS 引擎 50ms 隐藏卡片重新计算高度的时间
-        setTimeout(() => {
-          const scrollHeight = document.documentElement.scrollHeight;
-          const clientHeight = window.innerHeight;
-          
-          // 判定：如果页面总高度连一屏半都不到（被干掉的视频太多了）
-          if (scrollHeight <= clientHeight * 1.5) {
-            // 策略 1: 看看页面底部的官方“加载更多/换一换”按钮在不在，在就直接帮你点一下
-            const rollBtn = document.querySelector('.roll-btn, .feed-roll-btn, .primary-btn-instance');
-            if (rollBtn) rollBtn.click();
-            
-            // 策略 2: 派发全局滚动事件，唤醒 B站官方绑定在 window 上的懒加载代码
-            window.dispatchEvent(new Event('scroll'));
-            
-            // 策略 3: 物理微弱震荡（滚1像素再回来），专治部分基于 IntersectionObserver 的顽固卡死
-            window.scrollBy(0, 1);
-            window.scrollBy(0, -1);
-          }
-        }, 50);
-      }
-      // ==========================================
+      // 【核心调用】：DOM 裁剪隐藏完成后，立即检查屏幕是否被填满，不饱满则立刻命令 B 站脚本自动加载下页
+      autoFillScreenFlow();
     }
   }
 
@@ -225,7 +223,6 @@
         const addedNodes = mutations[i].addedNodes;
         for (let j = 0; j < addedNodes.length; j++) {
           const node = addedNodes[j];
-          // 确保是普通 HTML 元素节点
           if (node && node.nodeType === 1) {
             const tag = node.localName;
 
@@ -233,7 +230,6 @@
               pendingComments.add(node);
               shouldSchedule = true;
             } else {
-              // 关键修复点：不要直接取 className，用 getAttribute('class') 确保拿出来的一定是纯 String
               const cls = node.getAttribute && node.getAttribute('class');
               if (typeof cls === 'string' && cls) {
                 if (cls.includes('card') || cls.includes('bili-video-card') || cls.includes('feed-card')) {

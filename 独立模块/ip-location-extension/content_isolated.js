@@ -31,7 +31,7 @@
       gap: 12px !important;
     }
 
-    /* ==================== 3. 全局强力防御层（隐藏各种静态逃逸组件 + 额外特定硬标签过滤） ==================== */
+    /* ==================== 3. 全局强力防御层（隐藏逃逸组件） ==================== */
     html[data-bili-pure-status="on"] [data-bili-card-type=\"pure-blocked\"],
     html[data-bili-pure-status="on"] #bili_live_recom,
     html[data-bili-pure-status="on"] .pop-live-small-list,
@@ -41,10 +41,18 @@
     html[data-bili-pure-status="on"] .banner-card,
     html[data-bili-pure-status="on"] .bili-video-card:has(a[href*="live.bilibili.com"]),
     html[data-bili-pure-status="on"] .bili-video-card:has(a[href*="/bangumi/play"]),
-    /* 精准硬核捕获带有特定渲染角标的干扰卡片并执行底层硬隐藏 */
     html[data-bili-pure-status="on"] .bili-video-card:has(.bili-video-card__info--creative-badge),
     html[data-bili-pure-status="on"] .bili-video-card:has(.bili-video-card__badge) {
       display: none !important;
+    }
+
+    /* ==================== 4. 【核心补丁】强制图片显影层 ==================== */
+    /* 防止 B站 默认 Vue 组件在失去懒加载触发时，将图片卡在 opacity: 0 导致白屏 */
+    html[data-bili-pure-status="on"] .v-img img,
+    html[data-bili-pure-status="on"] .bili-video-card__cover img,
+    html[data-bili-pure-status="on"] .bili-video-card__image img {
+      opacity: 1 !important;
+      visibility: visible !important;
     }
   `;
   (document.head || document.documentElement).appendChild(style);
